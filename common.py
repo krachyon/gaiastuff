@@ -155,6 +155,15 @@ def extract_features(*input_datasets, ignore_features=[]):
     return feat
 
 
+def normalize_table(data: astropy.table.Table):
+    clip_col = ('norm_dg', 'theta_arcsec_worst_source')
+    for column_name in data.columns:
+        if column_name.startswith('dist_nearest_neighbor') or (column_name in clip_col):
+            idx = ~np.isfinite(data[column_name]) | (data[column_name] > 30.)
+            data[column_name][idx] = 30.
+    return data
+
+
 def classify_low_high_sn(data, split_sn=4.5):
     prob = np.empty(len(data), dtype='f4')
 

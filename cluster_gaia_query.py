@@ -41,8 +41,11 @@ if __name__ == '__main__':
     combined_table['dist_nearest_neighbor_at_least_0_brighter'] = \
         combined_table['dist_nearest_neighbor_at_least_equally_bright']
 
+    combined_table = combined_table.filled()
+    normalize_table(combined_table)
+
     assert set(required_fields).issubset(combined_table.colnames)
     # plt.errorbar(combined_table['ra'], combined_table['dec'], combined_table['ra_error'] / 60, combined_table['dec_error'] / 60, fmt='g.', capsize=2)
     # plt.show()
 
-    combined_table['good'] = classify_low_high_sn(combined_table.as_array())
+    combined_table['good'] = classify_low_high_sn(combined_table)
