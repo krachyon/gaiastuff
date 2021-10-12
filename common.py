@@ -1,3 +1,10 @@
+"""
+The code in this file is partially copied or adapted from
+https://colab.research.google.com/drive/1lPzhGSSIjx2nQ7XM2v8bQZtkf0Atrk0z?usp=sharing
+with the permission of the authors
+"""
+__license__ = "GPLv3"
+
 from pathlib import Path
 from typing import Iterable, Optional, Union
 
@@ -39,6 +46,7 @@ feature_transforms = {
     'pmdec':               np.abs,
     'pmra':                np.abs,
 }
+
 
 clip_col = ('theta_arcsec_worst_source',)
 for key in feature_names:

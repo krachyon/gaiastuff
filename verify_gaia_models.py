@@ -2,6 +2,7 @@
 This script tries to verify if the classifier works as expected by trying it out against the training data.
 Writes out table with classification to TABLE_PATH
 """
+__license__ = "GPLv3"
 
 import astropy.table
 from pathlib import Path

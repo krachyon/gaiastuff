@@ -3,6 +3,8 @@ Produces an ecsv-table that contains all gaia-columns and information about the
 object around which the lookup was done ('target_name_id', 'target_dec', 'target_ra')
 and a fractional goodnes parameter from the classifier ('good')
 """
+__license__ = "GPLv3"
+
 import re
 from pathlib import Path
 
@@ -54,6 +56,7 @@ if __name__ == '__main__':
     if not TABLE_PATH.exists():
         gaia_table = get_gaia_table_cluster(cluster_names, radius)
         combined_table = add_dist_table(gaia_table)
+        combined_table['target_radius'] = radius
     else:
         combined_table = astropy.table.Table.read(TABLE_PATH, format='ascii.ecsv')
 
