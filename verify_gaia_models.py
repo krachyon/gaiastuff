@@ -44,6 +44,7 @@ if __name__ == '__main__':
     if not TABLE_PATH.exists():
         gaia_table = get_gaia_table_verify()
         combined_table = add_dist_table(gaia_table)
+        combined_table = combined_table.filled()
     else:
         combined_table = astropy.table.Table.read(TABLE_PATH, format='ascii.ecsv')
 
@@ -51,5 +52,8 @@ if __name__ == '__main__':
 
     combined_table.write(TABLE_PATH, format='ascii.ecsv')
 
-
+    import numpy as np
+    frac_good = np.mean(combined_table['good'])
+    print(frac_good)
+    assert 0.48 < frac_good < 0.51
 

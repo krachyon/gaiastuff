@@ -57,6 +57,7 @@ if __name__ == '__main__':
         gaia_table = get_gaia_table_cluster(cluster_names, radius)
         combined_table = add_dist_table(gaia_table)
         combined_table['target_radius'] = radius
+        combined_table = combined_table.filled()
     else:
         combined_table = astropy.table.Table.read(TABLE_PATH, format='ascii.ecsv')
 
