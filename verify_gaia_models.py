@@ -8,16 +8,24 @@ from common import *
 TABLE_PATH = Path('./gaia_verify.ecsv')
 
 
-def get_gaia_table_verify():
-    fnames = ['good_ids.h5', 'bad_ids.h5']
+def get_gaia_table_verify(good_fname: Path = Path('./good_ids.h5'),
+                          bad_fname: Path = Path('./bad_ids.h5')):
+    """Get some test data from gaia servers from files containing good and bad ids"""
 
-    good_ids = list(h5py.File('good_ids.h5')['source_id'][:200].astype(int))
+    if not (good_fname.exists() and bad_fname.exists()):
+        raise ValueError(f'Download {good_fname.name} and {bad_fname.name} '
+                         f'from https://keeper.mpdl.mpg.de/d/21d3582c0df94e19921d/')
+
+    n_results = 200
+    # Read ids from files, launch Gaia archive queries
+    good_ids = list(h5py.File(good_fname)['source_id'][:n_results].astype(int))
     good_idsstr = str(good_ids).replace('[', '(').replace(']', ')')
     good_job = Gaia.launch_job(f'SELECT * FROM gaiaedr3.gaia_source WHERE source_id in {good_idsstr}')
-    bad_ids = list(h5py.File('bad_ids.h5')['source_id'][:200].astype(int))
+    bad_ids = list(h5py.File(bad_fname)['source_id'][:n_results].astype(int))
     bad_idsstr = str(bad_ids).replace('[', '(').replace(']', ')')
     bad_job = Gaia.launch_job(f'SELECT * FROM gaiaedr3.gaia_source WHERE source_id in {bad_idsstr}')
 
+    # retrieve queries and tag results
     good = good_job.get_results()
     good['prior_knowledge'] = 'good'
     bad = bad_job.get_results()
