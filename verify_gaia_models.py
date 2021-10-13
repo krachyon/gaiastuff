@@ -38,8 +38,8 @@ if __name__ == '__main__':
     if not TABLE_PATH.exists():
 
         gaia_table = get_gaia_table_verify()
-        dist_table = get_dist_table(gaia_table)
-        combined_table = astropy.table.join(gaia_table, dist_table, keys='source_id', uniq_col_name='{col_name}{table_name}', table_names=['','1'])
+        combined_table = add_dist_table(gaia_table)
+
         combined_table['dist_nearest_neighbor_at_least_0_brighter'] = \
             combined_table['dist_nearest_neighbor_at_least_equally_bright']
 

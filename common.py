@@ -54,11 +54,22 @@ for key in feature_names:
         feature_transforms[key] = lambda x: np.clip(x, 0., 5.)
 
 
-def get_dist_table(gaia_table):
+def add_dist_table(gaia_table):
+    """Query Gavo for additional table columns for given gaia table and add them to it"""
+
     dist_service = TapPlus('http://dc.zah.uni-heidelberg.de/tap')
     ids = str(list(gaia_table['source_id'])).replace('[', '(').replace(']', ')')
     job = dist_service.launch_job(f'SELECT * FROM gedr3spur.main WHERE source_id in {ids}')
-    return job.get_results()
+
+    dist_table = job.get_results()
+    combined_table = astropy.table.join(gaia_table, dist_table, keys='source_id', metadata_conflicts='silent')
+
+    # TODO This is the same info, has been renamed in the used table. Might be re-named back in the future
+    combined_table['dist_nearest_neighbor_at_least_0_brighter'] = \
+        combined_table['dist_nearest_neighbor_at_least_equally_bright']
+
+    return combined_table
+
 
 def normalize_table(data: astropy.table.Table):
     """perform necessary clipping of outlier data for feature exctraction. Return copy"""
