@@ -1,4 +1,7 @@
 import astropy.table
+from pathlib import Path
+from astroquery.gaia import Gaia
+import h5py
 
 from common import *
 
@@ -41,19 +44,9 @@ if __name__ == '__main__':
     # TODO HAX to deal with missing field, should contain same info?
 
 
-    combined_table['good'] = classify_low_high_sn(combined_table.filled().as_array())
+    combined_table['good'] = classify_low_high_sn(combined_table.filled().as_array(), *get_models())
 
 
-combined_table[feature_names+['prior_knowledge']]
-
-extract_features(combined_table[feature_names].as_array())
-
-# +
-
-model = tf.keras.models.load_model(Path('model_highsnr'))
-model.predict(extract_features(combined_table[feature_names].as_array()))
-# -
-
-
+    print(np.mean(combined_table['good']))
 
 
