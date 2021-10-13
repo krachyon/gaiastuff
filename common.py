@@ -82,7 +82,9 @@ def normalize_table(data: astropy.table.Table):
             data[column_name][invalid_elements] = 30.
     return data
 
-def extract_features(*input_datasets, ignore_features=[]):
+
+def extract_features(*input_datasets: Union[np.recarray, astropy.table.Table],
+                     ignore_features: Iterable = tuple()):
     """
     Extracts features from one or multiple structured arrays, and
     optionally returns an array containing labels (assumed to be
@@ -101,10 +103,8 @@ def extract_features(*input_datasets, ignore_features=[]):
       final array containing weights to apply to each sample will be returned.
     """
     # Remove features that are in the ignore_features list
-    feature_names_filt = []
-    for n in feature_names:
-        if n not in ignore_features:
-            feature_names_filt.append(n)
+
+    feature_names_filt = [name for name in feature_names if name not in ignore_features]
 
     n_features = len(feature_names_filt)
     n_d = sum([len(d) for d in input_datasets])

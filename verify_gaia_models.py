@@ -1,9 +1,15 @@
+"""
+This script tries to verify if the classifier works as expected by trying it out against the training data.
+Writes out table with classification to TABLE_PATH
+"""
+__license__ = "GPLv3"
+
 import astropy.table
 from pathlib import Path
 from astroquery.gaia import Gaia
 import h5py
 
-from common import *
+from common import add_dist_table, classify_low_high_sn, get_models, normalize_table
 
 TABLE_PATH = Path('./gaia_verify.ecsv')
 
@@ -36,25 +42,18 @@ def get_gaia_table_verify(good_fname: Path = Path('./good_ids.h5'),
 
 if __name__ == '__main__':
     if not TABLE_PATH.exists():
-
         gaia_table = get_gaia_table_verify()
         combined_table = add_dist_table(gaia_table)
-
-        combined_table['dist_nearest_neighbor_at_least_0_brighter'] = \
-            combined_table['dist_nearest_neighbor_at_least_equally_bright']
-
-        combined_table = normalize_table(combined_table)
-
-        combined_table.write(TABLE_PATH, format='ascii.ecsv')
+        combined_table = combined_table.filled()
     else:
         combined_table = astropy.table.Table.read(TABLE_PATH, format='ascii.ecsv')
 
-    # TODO HAX to deal with missing field, should contain same info?
+    combined_table['good'] = classify_low_high_sn(normalize_table(combined_table), *get_models())
 
+    combined_table.write(TABLE_PATH, format='ascii.ecsv')
 
-    combined_table['good'] = classify_low_high_sn(combined_table.filled().as_array(), *get_models())
-
-
-    print(np.mean(combined_table['good']))
-
+    import numpy as np
+    frac_good = np.mean(combined_table['good'])
+    print(frac_good)
+    assert 0.48 < frac_good < 0.51
 
