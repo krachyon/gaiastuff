@@ -17,7 +17,7 @@ import numpy as np
 from astropy.coordinates import SkyCoord
 from tqdm import tqdm
 
-from common import get_dist_table, combine_tables, calculate_distance, read_or_query
+from common import get_dist_table, combine_tables, calculate_distance, read_or_query, write_table
 from classifier import calculate_classification
 
 GAIA_TABLE_PATH = Path('./clusters_gaia.pkl.gz')
@@ -60,7 +60,7 @@ def main(run_model=True, limit=None):
     cluster_names = list(candidate_sources[candidate_sources['OTYPE_S'] == 'GlCl']['MAIN_ID'])
 
     # define what distance to the objects we want to look up stars in
-    radius = 2*u.arcminute
+    radius = 1*u.arcminute
 
     if limit:
         selected_cluster_names = cluster_names[:limit]
@@ -77,7 +77,7 @@ def main(run_model=True, limit=None):
     else:
         combined_table['good'] = combined_table['fidelity_v2']
 
-    combined_table.write(COMBINED_TABLE_PATH, format='ascii.ecsv')
+    write_table(combined_table, COMBINED_TABLE_PATH)
 
     return combined_table
 
