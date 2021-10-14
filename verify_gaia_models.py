@@ -13,9 +13,9 @@ import numpy as np
 from common import read_or_query, get_dist_table, combine_tables
 from classifier import calculate_classification
 
-GAIA_TABLE_PATH = Path('./verify_gaia.ecsv')
-DIST_TABLE_PATH = Path('./verify_dist.ecsv')
-COMBINED_TABLE_PATH = Path('./verify_combined.ecsv')
+GAIA_TABLE_PATH = Path('./verify_gaia.pkl.gz')
+DIST_TABLE_PATH = Path('./verify_dist.pkl.gz')
+COMBINED_TABLE_PATH = Path('./verify_combined.pkl.gz')
 
 
 def get_gaia_table_verify(good_fname: Path = Path('./good_ids.h5'),

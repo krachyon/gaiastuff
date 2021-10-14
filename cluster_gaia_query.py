@@ -15,21 +15,23 @@ from astroquery.simbad import Simbad
 import astropy.units as u
 import numpy as np
 from astropy.coordinates import SkyCoord
+from tqdm import tqdm
 
 from common import get_dist_table, combine_tables, calculate_distance, read_or_query
 from classifier import calculate_classification
 
-GAIA_TABLE_PATH = Path('./clusters_gaia.ecsv')
-DIST_TABLE_PATH = Path('./clusters_targets_dist.ecsv')
-COMBINED_TABLE_PATH = Path('./clusters_targets_combined.ecsv')
+GAIA_TABLE_PATH = Path('./clusters_gaia.pkl.gz')
+DIST_TABLE_PATH = Path('./clusters_targets_dist.pkl.gz')
+COMBINED_TABLE_PATH = Path('./clusters_targets_combined.pkl.gz')
 
 
-def get_gaia_table_cluster(cluster_names, radius=1.5*u.arcminute):
+def get_gaia_table_cluster(cluster_names, radius):
     """Perform a gaia cone-search around the objects in cluster_names, with given radius.
     Return: combined gaia Table from all queries
     """
     Gaia.ROW_LIMIT = 5000
-    jobs = [Gaia.cone_search(cluster, table_name="gaiaedr3.gaia_source", radius=radius) for cluster in cluster_names]
+    print('gaia query...')
+    jobs = [Gaia.cone_search(cluster, table_name="gaiaedr3.gaia_source", radius=radius) for cluster in tqdm(cluster_names)]
     tables = [job.get_results() for job in jobs]
 
     object_table = Simbad.query_objects(cluster_names)
@@ -50,7 +52,7 @@ def get_gaia_table_cluster(cluster_names, radius=1.5*u.arcminute):
     return combined_table
 
 
-def main(run_model=True):
+def main(run_model=True, limit=None):
     # Read table from
     # "http://simbad.u-strasbg.fr/simbad/sim-ref?querymethod=bib&simbo=on&submit=submit+bibcode&bibcode=2018A%26A...616A..12G"
     # and get the names of all globular clusters as list
@@ -60,7 +62,11 @@ def main(run_model=True):
     # define what distance to the objects we want to look up stars in
     radius = 2*u.arcminute
 
-    gaia_table = read_or_query(GAIA_TABLE_PATH, lambda: get_gaia_table_cluster(cluster_names, radius))
+    if limit:
+        selected_cluster_names = cluster_names[:limit]
+    else:
+        selected_cluster_names = cluster_names
+    gaia_table = read_or_query(GAIA_TABLE_PATH, lambda: get_gaia_table_cluster(selected_cluster_names, radius))
     dist_table = read_or_query(DIST_TABLE_PATH, lambda: get_dist_table(gaia_table['source_id'].astype(str)))
 
     combined_table = combine_tables(gaia_table, dist_table).filled()
