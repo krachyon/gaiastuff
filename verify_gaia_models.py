@@ -8,10 +8,14 @@ import astropy.table
 from pathlib import Path
 from astroquery.gaia import Gaia
 import h5py
+import numpy as np
 
-from common import add_dist_table, classify_low_high_sn, get_models, normalize_table
+from common import read_or_query, get_dist_table, combine_tables
+from classifier import calculate_classification
 
-TABLE_PATH = Path('./gaia_verify.ecsv')
+GAIA_TABLE_PATH = Path('./verify_gaia.ecsv')
+DIST_TABLE_PATH = Path('./verify_dist.ecsv')
+COMBINED_TABLE_PATH = Path('./verify_combined.ecsv')
 
 
 def get_gaia_table_verify(good_fname: Path = Path('./good_ids.h5'),
@@ -41,18 +45,17 @@ def get_gaia_table_verify(good_fname: Path = Path('./good_ids.h5'),
 
 
 if __name__ == '__main__':
-    if not TABLE_PATH.exists():
-        gaia_table = get_gaia_table_verify()
-        combined_table = add_dist_table(gaia_table)
-        combined_table = combined_table.filled()
-    else:
-        combined_table = astropy.table.Table.read(TABLE_PATH, format='ascii.ecsv')
 
-    combined_table['good'] = classify_low_high_sn(normalize_table(combined_table), *get_models())
+    gaia_table = read_or_query(GAIA_TABLE_PATH, get_gaia_table_verify)
+    dist_table = read_or_query(DIST_TABLE_PATH, lambda: get_dist_table(gaia_table['source_id'].astype(str)))
 
-    combined_table.write(TABLE_PATH, format='ascii.ecsv')
+    combined_table = combine_tables(gaia_table, dist_table).filled()
 
-    import numpy as np
+    combined_table['good'] = calculate_classification(combined_table)
+
+    combined_table.write(COMBINED_TABLE_PATH, format='ascii.ecsv')
+
+
     frac_good = np.mean(combined_table['good'])
     print(frac_good)
     assert 0.48 < frac_good < 0.51

@@ -12,17 +12,23 @@ import astropy.coordinates
 import astropy.table
 from astroquery.gaia import Gaia
 from astroquery.simbad import Simbad
+import astropy.units as u
+import numpy as np
+from astropy.coordinates import SkyCoord
 
-from common import add_dist_table, classify_low_high_sn, get_models, normalize_table
+from common import get_dist_table, combine_tables, calculate_distance, read_or_query
+from classifier import calculate_classification
 
-TABLE_PATH = Path('./gc_targets.ecsv')
+GAIA_TABLE_PATH = Path('./clusters_gaia.ecsv')
+DIST_TABLE_PATH = Path('./clusters_targets_dist.ecsv')
+COMBINED_TABLE_PATH = Path('./clusters_targets_combined.ecsv')
 
 
-def get_gaia_table_cluster(cluster_names, radius=astropy.coordinates.Angle('60"')):
+def get_gaia_table_cluster(cluster_names, radius=1.5*u.arcminute):
     """Perform a gaia cone-search around the objects in cluster_names, with given radius.
     Return: combined gaia Table from all queries
     """
-
+    Gaia.ROW_LIMIT = 5000
     jobs = [Gaia.cone_search(cluster, table_name="gaiaedr3.gaia_source", radius=radius) for cluster in cluster_names]
     tables = [job.get_results() for job in jobs]
 
@@ -37,13 +43,14 @@ def get_gaia_table_cluster(cluster_names, radius=astropy.coordinates.Angle('60"'
         return [re.sub(r'\s+', ' ', x) for x in xcol], [re.sub(r'\s+', ' ', y) for y in ycol]
 
     gaia_table = astropy.table.vstack(tables)
-    gaia_table = astropy.table.join(gaia_table, object_table['target_name', 'target_ra', 'target_dec'],
+    combined_table = astropy.table.join(gaia_table, object_table['target_name', 'target_ra', 'target_dec'],
                                     join_funcs={'target_name': join_func})
 
-    return gaia_table
+    combined_table['target_radius'] = radius
+    return combined_table
 
 
-if __name__ == '__main__':
+def main(run_model=True):
     # Read table from
     # "http://simbad.u-strasbg.fr/simbad/sim-ref?querymethod=bib&simbo=on&submit=submit+bibcode&bibcode=2018A%26A...616A..12G"
     # and get the names of all globular clusters as list
@@ -51,16 +58,23 @@ if __name__ == '__main__':
     cluster_names = list(candidate_sources[candidate_sources['OTYPE_S'] == 'GlCl']['MAIN_ID'])
 
     # define what distance to the objects we want to look up stars in
-    radius = astropy.coordinates.Angle('60"')
+    radius = 2*u.arcminute
 
-    if not TABLE_PATH.exists():
-        gaia_table = get_gaia_table_cluster(cluster_names, radius)
-        combined_table = add_dist_table(gaia_table)
-        combined_table['target_radius'] = radius
-        combined_table = combined_table.filled()
+    gaia_table = read_or_query(GAIA_TABLE_PATH, lambda: get_gaia_table_cluster(cluster_names, radius))
+    dist_table = read_or_query(DIST_TABLE_PATH, lambda: get_dist_table(gaia_table['source_id'].astype(str)))
+
+    combined_table = combine_tables(gaia_table, dist_table).filled()
+    calculate_distance(combined_table)
+
+    if run_model:
+        combined_table['good'] = calculate_classification(combined_table)
     else:
-        combined_table = astropy.table.Table.read(TABLE_PATH, format='ascii.ecsv')
+        combined_table['good'] = combined_table['fidelity_v2']
 
-    combined_table['good'] = classify_low_high_sn(normalize_table(combined_table), *get_models())
+    combined_table.write(COMBINED_TABLE_PATH, format='ascii.ecsv')
 
-    combined_table.write(TABLE_PATH, format='ascii.ecsv')
+    return combined_table
+
+
+if __name__ == '__main__':
+    combined_table = main()
