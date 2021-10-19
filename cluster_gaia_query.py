@@ -25,17 +25,20 @@ DIST_TABLE_PATH = Path('./clusters_targets_dist.pkl.gz')
 COMBINED_TABLE_PATH = Path('./clusters_targets_combined.pkl.gz')
 
 
-def get_gaia_table_cluster(cluster_names, radius):
+def get_gaia_table_cluster(object_table, radius):
     """Perform a gaia cone-search around the objects in cluster_names, with given radius.
     Return: combined gaia Table from all queries
     """
     Gaia.ROW_LIMIT = 5000
+    object_table = object_table.copy()
+    cluster_names = object_table['MAIN_ID']
+
     print('gaia query...')
-    jobs = [Gaia.cone_search(cluster, table_name="gaiaedr3.gaia_source", radius=radius) for cluster in tqdm(cluster_names)]
+    jobs = [Gaia.cone_search(cluster, table_name="gaiaedr3.gaia_source", radius=radius)
+            for cluster in tqdm(cluster_names)]
     tables = [job.get_results() for job in jobs]
 
-    object_table = Simbad.query_objects(cluster_names)
-    object_table.rename_columns(['MAIN_ID', 'RA', 'DEC'], ['target_name', 'target_ra', 'target_dec'])
+    object_table.rename_columns(['MAIN_ID', 'RA_d', 'DEC_d'], ['target_name', 'target_ra', 'target_dec'])
 
     for gaia_table, name in zip(tables, cluster_names):
         gaia_table['target_name'] = name
@@ -45,7 +48,7 @@ def get_gaia_table_cluster(cluster_names, radius):
         return [re.sub(r'\s+', ' ', x) for x in xcol], [re.sub(r'\s+', ' ', y) for y in ycol]
 
     gaia_table = astropy.table.vstack(tables)
-    combined_table = astropy.table.join(gaia_table, object_table['target_name', 'target_ra', 'target_dec'],
+    combined_table = astropy.table.join(gaia_table, object_table,
                                     join_funcs={'target_name': join_func})
 
     combined_table['target_radius'] = radius
@@ -56,17 +59,17 @@ def main(run_model=True, limit=None):
     # Read table from
     # "http://simbad.u-strasbg.fr/simbad/sim-ref?querymethod=bib&simbo=on&submit=submit+bibcode&bibcode=2018A%26A...616A..12G"
     # and get the names of all globular clusters as list
-    candidate_sources = astropy.table.Table.read('davide2018.vo', format='votable')
-    cluster_names = list(candidate_sources[candidate_sources['OTYPE_S'] == 'GlCl']['MAIN_ID'])
+
+    object_table = astropy.table.Table.read('gaiacolab2018.vo', format='votable')
+    object_table = object_table[object_table['OTYPE_S'] == 'GlCl']
 
     # define what distance to the objects we want to look up stars in
     radius = 1*u.arcminute
 
     if limit:
-        selected_cluster_names = cluster_names[:limit]
-    else:
-        selected_cluster_names = cluster_names
-    gaia_table = read_or_query(GAIA_TABLE_PATH, lambda: get_gaia_table_cluster(selected_cluster_names, radius))
+        object_table = object_table[:limit]
+
+    gaia_table = read_or_query(GAIA_TABLE_PATH, lambda: get_gaia_table_cluster(object_table, radius))
     dist_table = read_or_query(DIST_TABLE_PATH, lambda: get_dist_table(gaia_table['source_id'].astype(str)))
 
     combined_table = combine_tables(gaia_table, dist_table).filled()
