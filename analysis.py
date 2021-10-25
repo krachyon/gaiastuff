@@ -1,13 +1,16 @@
 # -*- coding: utf-8 -*-
 # +
-# %matplotlib notebook
-# %pylab
+# %matplotlib inline
+# #%matplotlib notebook
+# #%pylab
 import numpy as np
 import matplotlib.pyplot as plt
 from common import *
 from cluster_gaia_query import COMBINED_TABLE_PATH, DIST_TABLE_PATH, GAIA_TABLE_PATH, main
 import astropy.units as u
 from astropy.coordinates import SkyCoord
+import pandas as pd
+from matplotlib.colors import LogNorm
 
 import ipywidgets as widgets
 from IPython.display import HTML
@@ -25,6 +28,10 @@ HTML('''
 </style>''')
 # -
 
+
+# disable for interactive
+plt.rcParams['figure.figsize'] = (9, 6)
+plt.rcParams['figure.dpi'] = 150
 
 # # Context and introduction
 #
@@ -77,11 +84,22 @@ combined_table = read_table(COMBINED_TABLE_PATH)
 combined_table['target_name_id','ra','dec', 'target_ra', 'target_dec', 'target_dist', 'target_coordinates']
 
 # # Analysis
+# ## Cutoff for astrometric Precision
+# Plotting the histogram of the overall astrometric error of gaia sources reveals a long tail of source with errors over $20 \mathrm{mas}$. As more than 95% of sources have an error below $27 \mathrm{mas}$, $30\mathrm{mas}$ would be a very conservative cutoff. For evaluating the possibility of MICADO calibration, the positional error should not exceed the pixel scale of $4 \mathrm{mas}$. 
+
+plt.figure()
+error = np.sqrt(combined_table['ra_error']**2+combined_table['dec_error']**2)
+combined_table['combined_error'] = error
+plt.hist(error,bins=1000)
+pd.Series(error).describe(percentiles=[.5,.75,.9,.95,.99,.999])
+
+#
 # With the data assembled into a single table, it is relatively straightforward to filter this table for good sources for quality and distance to the observation target with a selector, e.g.:
 
-selector = (combined_table['target_dist']<60*u.arcsec)&(combined_table['good']>0.5)
+selector = (combined_table['target_dist']<60*u.arcsec)&(combined_table['good']>0.5) & (error<(4*u.mas))
 filtered_table = combined_table[selector]
 filtered_table
+
 
 # ## Interactive exploration
 # The data can be explored interactively with the following plotting `ipywidgets` based snippet
@@ -89,22 +107,34 @@ filtered_table
 # +
 style = {'description_width': 'initial'}
 layout = {'width': '100%'}
-distance = widgets.FloatSlider(value=30, min=0, max=60, continuous_update=False,
+distance_slider = widgets.FloatSlider(value=30, min=0, max=60, continuous_update=False,
                                description = 'cutoff distance in arcseconds', style=style, layout=layout)
-quality = widgets.FloatSlider(value=0.5, min=0, max=1, continuous_update=False,
+quality_slider = widgets.FloatSlider(value=0.5, min=0, max=1, continuous_update=False,
                               description = 'cutoff source fidelity', style=style, layout=layout)
-target = widgets.Dropdown(options=['all']+list(np.unique(combined_table['target_name_id'])), description='Target', layout={'width': '40%'})
+error_slider = widgets.FloatSlider(value=4, min=0, max=5, continuous_update=False, step=0.005,
+                              description = 'max astrometric error [mas]', style=style, layout=layout)
+target_dropdown = widgets.Dropdown(options=['all']+list(np.unique(combined_table['target_name_id'])), description='Target', layout={'width': '40%'})
 
-def neigbour_plot(table, cutoff_distance, source_quality, target):
+def neigbour_plot(table, cutoff_distance, source_quality, max_error, target):
     plt.clf()
     if target != 'all':
         table = table[table['target_name_id']==target]
-    table = table[(table['target_dist']<cutoff_distance*u.arcsec)&(table['good']>source_quality)]        
+    table = table[(table['target_dist']<cutoff_distance*u.arcsec)&
+                  (table['good']>source_quality)&
+                  (table['ra_error']<max_error*u.mas)&
+                  (table['dec_error']<max_error*u.mas)]
     if len(table) == 0:
         return
     target_coordinates=table['target_coordinates'].galactic
     source_coordinates=table['source_coordinates'].galactic
-    plt.scatter(source_coordinates.l, source_coordinates.b, c=table['good'], label='gaia sources')
+    
+    #xerr, yerr = table['ra_error'].to(u.deg).value, table['dec_error'].to(u.deg).value    
+    #plt.errorbar(source_coordinates.l.value, source_coordinates.b.value, xerr, yerr, '.')
+    
+    #plt.scatter(source_coordinates.l, source_coordinates.b, c=table['good'], label='gaia sources')
+    combined_error = np.sqrt(table['ra_error']**2+table['dec_error']**2)
+    # Bigger marker -> better chance that source is good
+    plt.scatter(source_coordinates.l, source_coordinates.b, c=combined_error, s=table['good']*40 ,label='gaia sources', norm=LogNorm())
 
     for i,group in enumerate(table.group_by('target_name_id').groups):
         entry = group[0]
@@ -117,7 +147,8 @@ def neigbour_plot(table, cutoff_distance, source_quality, target):
     plt.plot([],[], 'ro', label='targets, diameter')
 
     cbar=plt.colorbar()
-    cbar.set_label('p(solution good) [0-1]')
+    cbar.set_label('astrometric error[mas]')
+    #cbar.set_label('p(solution good) [0-1]')
 
     plt.xlabel('galactic l [deg]')
     plt.ylabel('galactic b [deg]')
@@ -125,13 +156,13 @@ def neigbour_plot(table, cutoff_distance, source_quality, target):
     plt.legend()
 
 plt.figure()
-widgets.interact(lambda a,b,c: neigbour_plot(combined_table,a,b,c), a=distance, b=quality, c=target)
+widgets.interact(lambda a,b,c,d: neigbour_plot(combined_table,a,b,c,d), a=distance_slider, b=quality_slider, c=error_slider, d=target_dropdown)
 pass
 # -
 
 # ## Gaia Source density
 #
-# With the MICADO FOV of $1 \mathrm{as}^2$ [cn]  it is easy to estimate the expected number of gaia sources in a frame from the density, i.e. number of sources per solid angle. For some sources the source density seems to be lower in the central region, therefore it is calculated for two radii of $60 \mathrm{as}$ and $30 \mathrm{as}$:
+# With the MICADO FOV of $1 \mathrm{as}^2$ [citation_needed]  it is easy to estimate the expected number of gaia sources in a frame from the density, i.e. number of sources per solid angle. For some sources the source density seems to be lower in the central region, therefore it is calculated for two radii of $60 \mathrm{as}$ and $30 \mathrm{as}$:
 
 # +
 out_tables = []
@@ -165,13 +196,18 @@ problem_table
 # ### Angular size
 # The angular size of the sampled clusters is typically in the $5 \mathrm{arcmin}$ range, with the smallest one still having a major axis of $0.98 \mathrm{arcmin}$. So for nearly all of the objects considered here, an analysis of the cluster similar to [4] would have to use multiple exposures to cover all sources within the object. as the source density tends to slightly increases away from the center of the clusters  [link], analyzing the central region checks the worst case.
 
-np.min(good_within['GALDIM_MAJAXIS']), np.max(good_within['GALDIM_MAJAXIS']), np.median(good_within['GALDIM_MAJAXIS']), np.std(good_within['GALDIM_MAJAXIS'])
+print(
+'Sizes: ',    
+'min: ', np.min(good_within['GALDIM_MAJAXIS']),
+'max: ', np.max(good_within['GALDIM_MAJAXIS']),
+'median: ', np.median(good_within['GALDIM_MAJAXIS']),
+'std: ', np.std(good_within['GALDIM_MAJAXIS'])
+)
 
 # ## Correlation of density with position on sky
 # There's no clear trend between position relative to the galaxy apparent from the following plots
 
 # +
-from matplotlib.colors import LogNorm
 plt.figure()
 l = good_within['target_coordinates'].galactic.l
 b = good_within['target_coordinates'].galactic.b
@@ -190,19 +226,19 @@ cbar.set_label(r'density of sources within $60\mathrm{as}$ [ $\frac{\mathrm{sour
 plt.legend()
 pass
 # -
-figure()
+plt.figure()
 center = SkyCoord(0,0,frame='galactic',unit=u.deg)
-plot(good_within['target_coordinates'].galactic.b, good_within['density_60'], 'o', label='good sources within 60 as')
-plot(good_within['target_coordinates'].galactic.b, good_within['density_30'], 'o', label='good sources within 30 as')
+plt.plot(good_within['target_coordinates'].galactic.b, good_within['density_60'], 'o', label='good sources within 60 as')
+plt.plot(good_within['target_coordinates'].galactic.b, good_within['density_30'], 'o', label='good sources within 30 as')
 plt.ylabel(r'source density [ $\frac{\mathrm{sources}}{\mathrm{arcmin}^2}$ ]')
 plt.xlabel('galactic latitude b [deg]')
 plt.legend()
 pass
 
-figure()
+plt.figure()
 center = SkyCoord(0,0,frame='galactic',unit=u.deg)
-plot(center.separation(good_within['target_coordinates']), good_within['density_60'], 'o', label='good sources within 60 as')
-plot(center.separation(good_within['target_coordinates']), good_within['density_30'], 'o', label='good sources within 30 as')
+plt.plot(center.separation(good_within['target_coordinates']), good_within['density_60'], 'o', label='good sources within 60 as')
+plt.plot(center.separation(good_within['target_coordinates']), good_within['density_30'], 'o', label='good sources within 30 as')
 plt.ylabel(r'source density [ $\frac{\mathrm{sources}}{\mathrm{arcmin}^2}$ ]')
 plt.xlabel('distance from galactic center [deg]')
 plt.legend()
@@ -223,6 +259,45 @@ cbar.set_label('distance from galactic center[deg]')
 plt.xlabel('source density in 30 as radius')
 plt.ylabel('source density in 60 as radius')
 pass
+
+# +
+from numpy.lib.stride_tricks import sliding_window_view
+window = 151
+
+filtered_table.sort('target_dist')
+dists = sliding_window_view(filtered_table['target_dist'], window)
+errors = sliding_window_view(filtered_table['combined_error'], window)
+
+xs = np.mean(dists, axis=1)
+ys = np.mean(errors, axis=1)
+ys_med = np.median(errors, axis=1)
+yerr = np.std(errors, axis=1)
+
+plt.figure()
+plt.plot(xs, ys, label='mean centroid error')
+plt.fill_between(xs, ys+yerr/3, ys-yerr/3, alpha=0.4, label=r'$\pm \mathrm{std}/{5}$ ')
+plt.plot(xs, ys_med, label= 'median centroid error')
+
+plt.xlabel('distance from target')
+plt.ylabel('centroid error')
+plt.title(f'window size: {window}')
+plt.legend()
+pass
+# -
+
+# There is a slight trend towards higher centroid errors further away from the target. Sources with a higher centroid error display a higher fidelity at all radii, as expected
+
+# +
+plt.figure()
+
+plt.hexbin(filtered_table['target_dist'], filtered_table['combined_error'], C=filtered_table['good'],
+           reduce_C_function=np.mean,
+           yscale='log', marginals=True, gridsize=60)
+
+plt.xlabel('distance')
+plt.ylabel('combined error')
+cbar=plt.colorbar()
+cbar.set_label('mean source fidelity')
 
 # +
 fig, axs = plt.subplots(int(np.ceil(len(problem_table)/2)), 2)
@@ -272,7 +347,7 @@ pass
 # # Compost
 
 # +
-figure()
+plt.figure()
 
 current = filtered_table['target_name_id','target_dist']
 groups=current.group_by('target_name_id').groups
@@ -282,6 +357,8 @@ for name, group in zip(groups.keys, groups):
     ys = range(0,len(group))
     plt.step(xs,ys, alpha=0.8, where='post', color='blue')
 
-axhline(5, color='red')    
-ylim(0,10)
+plt.axhline(5, color='red')    
+plt.xlabel('radius in as')
+plt.ylabel('number of sources within radius')
+plt.ylim(0,10)
 pass
