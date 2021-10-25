@@ -7,6 +7,8 @@ pip install -r requirements.txt
 jupyter notebook
 <open anaylsis.ipynb>
 ```
+## choosing different sources
+call `cluster_gaia_query::main` with `object_table_path=Path('your_simbad_vo_table.vo')`
 
 # verification
 This repo contains two scripts to trial/run classification of the astrometric

@@ -6,7 +6,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from common import *
-from cluster_gaia_query import COMBINED_TABLE_PATH, DIST_TABLE_PATH, GAIA_TABLE_PATH, main
+from cluster_gaia_query import main, get_table_paths
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 import pandas as pd
@@ -68,15 +68,11 @@ plt.rcParams['figure.dpi'] = 150
 #
 # To perform this analysis on a different catalogue of objects, one only needs to replace the reference from which `object_table` is read in `cluster_gaia_query.py::main` with the table from a custom SIMBAD query or provide a similar table with a `MAIN_ID` column resolvable by GAIA and columns `['RA_d', 'DEC_d' ,'GALDIM_MAJAXIS']` present.
 
-# +
-# uncomment and run this to query and create tables
-# combined_table = main() 
-# -
+# uncomment and run this to query and create tables.
+gaia_table, dist_table, combined_table = main(object_table_path=Path('gaiacolab2018.vo')) 
 
 # read existing tables
-gaia_table = read_table(GAIA_TABLE_PATH)
-dist_table = read_table(DIST_TABLE_PATH)
-combined_table = read_table(COMBINED_TABLE_PATH)
+gaia_table, dist_table, combined_table = [read_table(path) for path in get_table_paths(Path('gaiacolab2018.vo'))]
 
 
 # sample of the combined table:

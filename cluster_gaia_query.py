@@ -20,10 +20,6 @@ from tqdm import tqdm
 from common import get_dist_table, combine_tables, calculate_distance, read_or_query, write_table
 from classifier import calculate_classification
 
-GAIA_TABLE_PATH = Path('./clusters_gaia.pkl.gz')
-DIST_TABLE_PATH = Path('./clusters_targets_dist.pkl.gz')
-COMBINED_TABLE_PATH = Path('./clusters_targets_combined.pkl.gz')
-
 
 def get_gaia_table_cluster(object_table, radius):
     """Perform a gaia cone-search around the objects in cluster_names, with given radius.
@@ -55,12 +51,23 @@ def get_gaia_table_cluster(object_table, radius):
     return combined_table
 
 
-def main(run_model=True, limit=None):
+def get_table_paths(object_table_path: Path) -> tuple[Path, Path, Path]:
+    parent = object_table_path.parent
+    base = object_table_path.stem
+    gaia_table_path = parent/(base+'_gaia.pkl.gz')
+    dist_table_path = parent/(base+'_dist.pkl.gz')
+    combined_table_path = parent/(base+'_combined.pkl.gz')
+    return gaia_table_path, dist_table_path, combined_table_path
+
+
+def main(object_table_path=Path('gaiacolab2018.vo'), run_model=True, limit=None):
     # Read table from
     # "http://simbad.u-strasbg.fr/simbad/sim-ref?querymethod=bib&simbo=on&submit=submit+bibcode&bibcode=2018A%26A...616A..12G"
     # and get the names of all globular clusters as list
+    gaia_table_path, dist_table_path, combined_table_path = get_table_paths(object_table_path)
 
-    object_table = astropy.table.Table.read('gaiacolab2018.vo', format='votable')
+
+    object_table = astropy.table.Table.read(object_table_path, format='votable')
     object_table = object_table[object_table['OTYPE_S'] == 'GlCl']
 
     # define what distance to the objects we want to look up stars in
@@ -69,8 +76,8 @@ def main(run_model=True, limit=None):
     if limit:
         object_table = object_table[:limit]
 
-    gaia_table = read_or_query(GAIA_TABLE_PATH, lambda: get_gaia_table_cluster(object_table, radius))
-    dist_table = read_or_query(DIST_TABLE_PATH, lambda: get_dist_table(gaia_table['source_id'].astype(str)))
+    gaia_table = read_or_query(gaia_table_path, lambda: get_gaia_table_cluster(object_table, radius))
+    dist_table = read_or_query(dist_table_path, lambda: get_dist_table(gaia_table['source_id'].astype(str)))
 
     combined_table = combine_tables(gaia_table, dist_table).filled()
     calculate_distance(combined_table)
@@ -80,9 +87,9 @@ def main(run_model=True, limit=None):
     else:
         combined_table['good'] = combined_table['fidelity_v2']
 
-    write_table(combined_table, COMBINED_TABLE_PATH)
+    write_table(combined_table, combined_table_path)
 
-    return combined_table
+    return gaia_table, dist_table, combined_table
 
 
 if __name__ == '__main__':
