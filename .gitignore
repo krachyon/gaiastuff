@@ -1,0 +1,8 @@
+.*
+!.gitignore
+__pycache__
+**/model_*
+*.ecsv
+*.h5
+*.pkl.gz
+*.pdf
